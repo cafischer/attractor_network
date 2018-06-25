@@ -1,6 +1,7 @@
 import matplotlib.pyplot as pl
 import numpy as np
 from brian2 import *
+import matplotlib.animation as animation
 pl.style.use('paper')
 
 
@@ -15,17 +16,26 @@ if __name__ == '__main__':
     assert np.sqrt(n_neurons).is_integer()
     n_neurons_row = n_neurons_column = int(np.sqrt(n_neurons))
     assert n_neurons_row % 2 == 0  # handy for assigning directions
-    neuron_spacing = 1
+    neuron_spacing = 1  # cm
 
     tau = 10*msecond
 
     alpha = 0.10315
+    a0 = 4
+    diameter_neural_sheet = n_neurons_row * neuron_spacing
+    delta_r = diameter_neural_sheet
+
+    x_velocity = 0  # TODO
+    y_velocity = 0  # TODO
 
     neuron_eqs = '''
-    ds/dt = (- s + s_w_tot_rect)/ tau : 1
-    s_w_tot_rect = s_w_tot * int(s_w_tot > 0) + 0 * int(s_w_tot <= 0) : 1
-    b = A(x) * (1 + alpha * (x_direction * x_velocity + y_direction * y_velocity)) : 1
+    ds/dt = (- s + s_w_tot_rect) / tau : 1
+    s_w_tot_rect = (s_w_tot + b) * int((s_w_tot + b) > 0) + 0 * int((s_w_tot + b) <= 0) : 1
     s_w_tot : 1
+    b = A * (1 + alpha * (x_direction * x_velocity + y_direction * y_velocity)) : 1
+    A = 1 * int(sqrt(x**2+y**2) < diameter_neural_sheet - delta_r) 
+    + exp(-a0 * ((sqrt(x**2+y**2) - diameter_neural_sheet + delta_r) / delta_r)**2) 
+    * int(diameter_neural_sheet - delta_r <= sqrt(x**2+y**2)) * int(sqrt(x**2+y**2) <= diameter_neural_sheet) : 1
     # Neuron position in space
     x : 1 (constant)
     y : 1 (constant)
@@ -116,16 +126,34 @@ if __name__ == '__main__':
     run(1*second)
 
     # plot activity
-    pl.figure()
-    for i in range(n_neurons):
-        pl.plot(M.t / ms, M.s[i])
-    pl.xlabel('Time (ms)')
-    pl.ylabel('Activity')
-    #pl.show()
+    # pl.figure()
+    # for i in range(n_neurons):
+    #     pl.plot(M.t / ms, M.s[i])
+    # pl.xlabel('Time (ms)')
+    # pl.ylabel('Activity')
+    # #pl.show()
+    #
+    # pl.figure()
+    # for i in range(n_neurons):
+    #         pl.plot(M.t / ms, M.s_w_tot[i])
+    # pl.xlabel('Time (ms)')
+    # pl.ylabel('s_w_tot')
+    # #pl.show()
 
-    pl.figure()
-    for i in range(n_neurons):
-            pl.plot(M.t / ms, M.s_w_tot[i])
-    pl.xlabel('Time (ms)')
-    pl.ylabel('s_w_tot')
+    # grid map
+    cmap = pl.get_cmap('hot')
+
+    def update_plot(i, color, scat):
+        scat.set_color(cmap(color[:, i]))
+        return scat,
+
+    fig, ax = pl.subplots()
+    im = ax.scatter(G.x, G.y, c=M.s[:, 0], cmap=cmap, vmin=0, vmax=1)
+    ani = animation.FuncAnimation(fig, update_plot, frames=xrange(len(M.t)),
+                                  interval=100,  # interval=how fast changes in ms
+                                  fargs=(M.s, im), blit=True)
+    ax.set_xlabel('Position x (cm)')
+    ax.set_ylabel('Position y (cm)')
+    fig.colorbar(im, ax=ax, label='Activity')
+    pl.tight_layout()
     pl.show()
